@@ -127,11 +127,6 @@ function initEventListeners() {
     btnShareEmail.addEventListener('click', handleShareProcess);
   }
 
-  const btnShareNativeApps = document.getElementById('btnShareNativeApps');
-  if (btnShareNativeApps) {
-    btnShareNativeApps.addEventListener('click', handleShareNativeApps);
-  }
-
   const btnBottomDownloadZip = document.getElementById('btnBottomDownloadZip');
   if (btnBottomDownloadZip) {
     btnBottomDownloadZip.addEventListener('click', handleDownloadZipProcess);
@@ -390,11 +385,10 @@ async function ensureZipGenerated(jobName, category, dateSent, shipDate, notes) 
 }
 
 /**
- * Handle "Open in Outlook" button click
- * 1. Instantly packages all files into the ZIP archive (<Job> - <Category>.zip)
- * 2. Downloads the ZIP archive directly to the phone
- * 3. Immediately opens Outlook with Subject & Summary pre-filled
- * 4. User simply taps the paperclip icon in Outlook to attach the downloaded ZIP
+ * Handle "Share ZIP to Apps" button click
+ * 1. Instantly packages all files into the single ZIP file (<Job> - <Category>.zip)
+ * 2. Opens the native Android share menu with all installed apps (Outlook, Gmail, Teams, WhatsApp)
+ * 3. Attaches the ZIP file directly to that email/message!
  */
 async function handleShareProcess() {
   if (!validateForm()) {
@@ -413,60 +407,29 @@ async function handleShareProcess() {
   const shareTitle = `Field Dims: ${jobName} - ${category}`;
 
   // 1. Instantly package all photos & files into ZIP container (<Job> - <Category>.zip)
-  await ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
+  const zipBlob = await ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
 
-  // 2. Download the ZIP file to phone
-  downloadZipArchive();
+  const zipFile = new File([zipBlob], currentZipFilename, {
+    type: 'application/zip',
+    lastModified: Date.now()
+  });
 
-  // 3. Copy summary to clipboard as backup
-  try {
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(currentSummaryText);
-    }
-  } catch (e) {}
-
-  // 4. Open Outlook immediately with Subject and Summary filled!
-  const mailtoUrl = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(currentSummaryText)}`;
-  window.location.href = mailtoUrl;
-
-  showToast(`✅ Summary in Outlook! Tap 📎 in Outlook to attach "${currentZipFilename}".`);
-}
-
-/**
- * Handle "Apps" button click (Teams, WhatsApp, Quick Share, etc.)
- */
-async function handleShareNativeApps() {
-  if (!validateForm()) {
-    showToast('⚠️ Please fill in all required fields marked with *');
-    return;
-  }
-
-  const jobName = document.getElementById('jobName').value.trim();
-  const category = document.getElementById('category').value.trim();
-  const dateSent = document.getElementById('dateSent').value.trim();
-  const shipDate = document.getElementById('shipDate').value.trim();
-  const notes = document.getElementById('notes').value.trim();
-
-  currentSummaryText = buildTextSummary(jobName, category, dateSent, shipDate, notes);
-  const shareTitle = `Field Dims: ${jobName} - ${category}`;
-
-  // Ensure ZIP is downloaded
-  await ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
-  downloadZipArchive();
-
+  // 2. Trigger native Android share sheet with the ZIP file attached!
   if (navigator.share) {
     try {
       await navigator.share({
         title: shareTitle,
-        text: currentSummaryText
+        text: currentSummaryText,
+        files: [zipFile]
       });
       return;
     } catch (err) {
-      if (err.name === 'AbortError') return;
-      console.warn('Native share dismissed:', err);
+      if (err.name === 'AbortError') return; // User closed the system share sheet
+      console.warn('Share with ZIP file error:', err);
     }
   }
 
+  // Desktop or fallback if navigator.share is not available
   openExportModal();
 }
 

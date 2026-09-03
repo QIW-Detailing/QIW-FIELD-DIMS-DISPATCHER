@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>QIW- Field dimention dispatcher</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260903_v4">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260903_v5">
 </head>
 <body>
 
@@ -193,15 +193,15 @@
   <!-- Sticky Bottom Bar for Mobile & Tablet -->
   <aside class="sticky-bottom-bar">
     <div class="bottom-bar-container">
-      <button type="button" class="btn-secondary-action" id="btnBottomDownloadZip" title="Download ZIP archive">
+      <button type="button" class="btn-secondary-action" id="btnBottomDownloadZip" title="Download ZIP archive to device">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
           <polyline points="7 10 12 15 17 10"></polyline>
           <line x1="12" y1="15" x2="12" y2="3"></line>
         </svg>
-        ZIP
+        Download ZIP
       </button>
-      <button type="button" class="btn-secondary-action" id="btnShareNativeApps" title="Share via Teams, WhatsApp, etc.">
+      <button type="button" class="btn-primary-action" id="btnShareEmail" title="Select app (Outlook, Gmail, Teams) to share ZIP">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="18" cy="5" r="3"></circle>
           <circle cx="6" cy="12" r="3"></circle>
@@ -209,14 +209,7 @@
           <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
           <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
         </svg>
-        Apps
-      </button>
-      <button type="button" class="btn-primary-action" id="btnShareEmail" title="Open Outlook with Summary & Download ZIP">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-          <polyline points="22,6 12,13 2,6"></polyline>
-        </svg>
-        Open in Outlook
+        Share ZIP to Apps
       </button>
     </div>
   </aside>
@@ -410,6 +403,6 @@
   <!-- Offline Vendored JSZip -->
   <script src="{{ url_for('static', filename='js/jszip.min.js') }}"></script>
   <!-- Application Logic -->
-  <script src="{{ url_for('static', filename='js/app.js') }}?v=20260903_v4"></script>
+  <script src="{{ url_for('static', filename='js/app.js') }}?v=20260903_v5"></script>
 </body>
 </html>
