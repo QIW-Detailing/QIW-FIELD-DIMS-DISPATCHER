@@ -13,29 +13,14 @@ let currentSummaryText = '';
 let currentSummaryHtml = '';
 
 document.addEventListener('DOMContentLoaded', () => {
-  initDate();
   initEventListeners();
 });
-
-/**
- * Pre-populate "Date of sending field dims" with today's date (YYYY-MM-DD)
- */
-function initDate() {
-  const dateSentInput = document.getElementById('dateSent');
-  if (dateSentInput) {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    dateSentInput.value = `${yyyy}-${mm}-${dd}`;
-  }
-}
 
 /**
  * Initialize event listeners
  */
 function initEventListeners() {
-  // Category input listener
+  // Category / Scope item input listener
   const categoryInput = document.getElementById('category');
   if (categoryInput) {
     categoryInput.addEventListener('input', () => {
@@ -47,7 +32,7 @@ function initEventListeners() {
   }
 
   // Clear validation errors on typing
-  ['jobName', 'dateSent', 'shipDate'].forEach(id => {
+  ['jobName', 'shipDate'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('input', () => {
@@ -149,11 +134,10 @@ function initEventListeners() {
 
       const jobName = document.getElementById('jobName') ? document.getElementById('jobName').value.trim() : '';
       const category = document.getElementById('category') ? document.getElementById('category').value.trim() : '';
-      const dateSent = document.getElementById('dateSent') ? document.getElementById('dateSent').value.trim() : '';
       const shipDate = document.getElementById('shipDate') ? document.getElementById('shipDate').value.trim() : '';
       const notes = document.getElementById('notes') ? document.getElementById('notes').value.trim() : '';
       const shareTitle = `Field Dims: ${jobName} - ${category}`;
-      const summary = buildTextSummary(jobName, category, dateSent, shipDate, notes);
+      const summary = buildTextSummary(jobName, category, shipDate, notes);
 
       downloadZipArchive();
       window.location.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(summary)}`;
@@ -301,12 +285,11 @@ function validateForm() {
 
   const jobName = document.getElementById('jobName');
   const category = document.getElementById('category');
-  const dateSent = document.getElementById('dateSent');
   const shipDate = document.getElementById('shipDate');
 
   if (!jobName.value.trim()) {
     jobName.classList.add('is-invalid');
-    showError('jobNameError', 'Job Number / Job Name is required');
+    showError('jobNameError', 'Job Name is required');
     isValid = false;
     if (!firstErrorElement) firstErrorElement = jobName;
   } else {
@@ -316,7 +299,7 @@ function validateForm() {
 
   if (!category.value.trim()) {
     category.classList.add('is-invalid');
-    showError('categoryError', 'Please select or enter a Category');
+    showError('categoryError', 'Scope Item is required');
     isValid = false;
     if (!firstErrorElement) firstErrorElement = category;
   } else {
@@ -324,19 +307,9 @@ function validateForm() {
     hideError('categoryError');
   }
 
-  if (!dateSent.value.trim()) {
-    dateSent.classList.add('is-invalid');
-    showError('dateSentError', 'Date of sending field dims is required');
-    isValid = false;
-    if (!firstErrorElement) firstErrorElement = dateSent;
-  } else {
-    dateSent.classList.remove('is-invalid');
-    hideError('dateSentError');
-  }
-
   if (!shipDate.value.trim()) {
     shipDate.classList.add('is-invalid');
-    showError('shipDateError', 'Ship Date is required');
+    showError('shipDateError', 'Requested Ship Date is required');
     isValid = false;
     if (!firstErrorElement) firstErrorElement = shipDate;
   } else {
@@ -370,7 +343,7 @@ function hideError(id) {
 /**
  * Ensure ZIP archive is generated and cached
  */
-async function ensureZipGenerated(jobName, category, dateSent, shipDate, notes) {
+async function ensureZipGenerated(jobName, category, shipDate, notes) {
   currentZipFilename = generateSafeFilename(jobName, category) + '.zip';
 
   const zip = new JSZip();
@@ -387,7 +360,7 @@ async function ensureZipGenerated(jobName, category, dateSent, shipDate, notes) 
     zip.file(fileName, item.file);
   }
 
-  zip.file("JOB_SUMMARY.txt", buildTextSummary(jobName, category, dateSent, shipDate, notes));
+  zip.file("JOB_SUMMARY.txt", buildTextSummary(jobName, category, shipDate, notes));
 
   generatedZipBlob = await zip.generateAsync({
     type: 'blob',
@@ -410,7 +383,6 @@ async function prepackZipInBackground() {
 
   const jobName = document.getElementById('jobName') ? document.getElementById('jobName').value.trim() : '';
   const category = document.getElementById('category') ? document.getElementById('category').value.trim() : '';
-  const dateSent = document.getElementById('dateSent') ? document.getElementById('dateSent').value.trim() : '';
   const shipDate = document.getElementById('shipDate') ? document.getElementById('shipDate').value.trim() : '';
   const notes = document.getElementById('notes') ? document.getElementById('notes').value.trim() : '';
 
@@ -430,7 +402,7 @@ async function prepackZipInBackground() {
     zip.file(fileName, item.file);
   }
 
-  zip.file("JOB_SUMMARY.txt", buildTextSummary(jobName, category, dateSent, shipDate, notes));
+  zip.file("JOB_SUMMARY.txt", buildTextSummary(jobName, category, shipDate, notes));
 
   try {
     prepackedZipBlob = await zip.generateAsync({
@@ -462,18 +434,17 @@ async function handleShareProcess() {
 
   const jobName = document.getElementById('jobName').value.trim();
   const category = document.getElementById('category').value.trim();
-  const dateSent = document.getElementById('dateSent').value.trim();
   const shipDate = document.getElementById('shipDate').value.trim();
   const notes = document.getElementById('notes').value.trim();
 
-  currentSummaryText = buildTextSummary(jobName, category, dateSent, shipDate, notes);
-  currentSummaryHtml = buildHtmlSummary(jobName, category, dateSent, shipDate, notes);
+  currentSummaryText = buildTextSummary(jobName, category, shipDate, notes);
+  currentSummaryHtml = buildHtmlSummary(jobName, category, shipDate, notes);
   const shareTitle = `Field Dims: ${jobName} - ${category}`;
   currentZipFilename = generateSafeFilename(jobName, category) + '.zip';
 
   let zipFileToShare = prepackedZipFile;
   if (!zipFileToShare) {
-    const zipBlob = await ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
+    const zipBlob = await ensureZipGenerated(jobName, category, shipDate, notes);
     zipFileToShare = new File([zipBlob], currentZipFilename, {
       type: 'application/zip',
       lastModified: Date.now()
@@ -534,11 +505,10 @@ async function handleDownloadZipProcess() {
   try {
     const jobName = document.getElementById('jobName').value.trim();
     const category = document.getElementById('category').value.trim();
-    const dateSent = document.getElementById('dateSent').value.trim();
     const shipDate = document.getElementById('shipDate').value.trim();
     const notes = document.getElementById('notes').value.trim();
 
-    await ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
+    await ensureZipGenerated(jobName, category, shipDate, notes);
     downloadZipArchive();
 
     if (btn) {
@@ -597,7 +567,7 @@ function downloadZipArchive() {
 /**
  * Build Plain Text Summary
  */
-function buildTextSummary(jobName, category, dateSent, shipDate, notes) {
+function buildTextSummary(jobName, category, shipDate, notes) {
   let fileListStr = '';
   if (attachedFiles.length > 0) {
     fileListStr = attachedFiles.map(f => `  - ${f.name} (${formatBytes(f.size)})`).join('\n');
@@ -607,10 +577,9 @@ function buildTextSummary(jobName, category, dateSent, shipDate, notes) {
 
   return `QIW - FIELD DIMENSION DISPATCHER
 =====================================================
-Job Number / Name : ${jobName}
-Category          : ${category}
-Date Sent (Dims)  : ${dateSent}
-Ship Date         : ${shipDate}
+Job Name            : ${jobName}
+Scope Item          : ${category}
+Requested Ship Date : ${shipDate}
 
 Additional Notes:
 ${notes ? notes : 'None'}
@@ -624,7 +593,7 @@ Generated by QIW- Field dimention dispatcher`;
 /**
  * Build Rich HTML Summary for Outlook EML / email body
  */
-function buildHtmlSummary(jobName, category, dateSent, shipDate, notes) {
+function buildHtmlSummary(jobName, category, shipDate, notes) {
   let filesHtml = '';
   if (attachedFiles.length > 0) {
     filesHtml = attachedFiles.map(f => `<li style="padding: 3px 0;"><strong>${escapeHtml(f.name)}</strong> (${formatBytes(f.size)})</li>`).join('');
@@ -659,19 +628,15 @@ function buildHtmlSummary(jobName, category, dateSent, shipDate, notes) {
   </div>
   <table class="table">
     <tr>
-      <td class="label">Job Number / Name:</td>
+      <td class="label">Job Name:</td>
       <td class="val"><strong>${escapeHtml(jobName)}</strong></td>
     </tr>
     <tr>
-      <td class="label">Category:</td>
+      <td class="label">Scope Item:</td>
       <td class="val">${escapeHtml(category)}</td>
     </tr>
     <tr>
-      <td class="label">Date of Sending Field Dims:</td>
-      <td class="val">${escapeHtml(dateSent)}</td>
-    </tr>
-    <tr>
-      <td class="label">Ship Date:</td>
+      <td class="label">Requested Ship Date:</td>
       <td class="val"><strong>${escapeHtml(shipDate)}</strong></td>
     </tr>
   </table>
@@ -700,8 +665,6 @@ function resetForm() {
 
     document.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
     document.querySelectorAll('.error-text').forEach(el => el.classList.remove('visible'));
-
-    initDate();
 
     // Revoke object URLs
     attachedFiles.forEach(f => {

@@ -6,7 +6,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <title>QIW- Field dimention dispatcher</title>
-  <link rel="stylesheet" href="static/css/style.css?v=20260903_v9">
+  <link rel="stylesheet" href="static/css/style.css?v=20260903_v10">
 </head>
 <body>
 
@@ -58,38 +58,27 @@
           <span class="badge-required">* Required Fields</span>
         </div>
 
-        <!-- Job Number / Job Name -->
+        <!-- Job Name -->
         <div class="form-group">
-          <label for="jobName">Job Number / Job Name <span class="star">*</span></label>
-          <input type="text" id="jobName" placeholder="e.g. 24-5082 / Downtown Plaza Tower" autocomplete="off" required>
+          <label for="jobName">Job Name <span class="star">*</span></label>
+          <input type="text" id="jobName" placeholder="e.g. Downtown Plaza Tower" autocomplete="off" required>
           <div class="error-text" id="jobNameError"></div>
           <div class="input-hint">Used as the first part of your ZIP file and Outlook subject.</div>
         </div>
 
-        <!-- Category -->
+        <!-- Scope Item -->
         <div class="form-group">
-          <label for="category">Category (What Field Dims Are For) <span class="star">*</span></label>
+          <label for="category">Scope Item <span class="star">*</span></label>
           <input type="text" id="category" placeholder="e.g. Main Entrance Canopy, Stair Railings, Storefront..." autocomplete="off" required>
           <div class="error-text" id="categoryError"></div>
           <div class="input-hint">Specify what item or area the field dimensions are for.</div>
         </div>
 
-        <!-- Dates Grid -->
-        <div class="form-grid-2">
-          <!-- Date of sending field dims (Today by default) -->
-          <div class="form-group">
-            <label for="dateSent">Date of Sending Field Dims <span class="star">*</span></label>
-            <input type="date" id="dateSent" required>
-            <div class="error-text" id="dateSentError"></div>
-            <div class="input-hint">Pre-filled with today's date.</div>
-          </div>
-
-          <!-- Ship date -->
-          <div class="form-group">
-            <label for="shipDate">Ship Date <span class="star">*</span></label>
-            <input type="date" id="shipDate" required>
-            <div class="error-text" id="shipDateError"></div>
-          </div>
+        <!-- Requested Ship Date -->
+        <div class="form-group">
+          <label for="shipDate">Requested Ship Date <span class="star">*</span></label>
+          <input type="date" id="shipDate" required>
+          <div class="error-text" id="shipDateError"></div>
         </div>
       </section>
 
@@ -387,6 +376,6 @@
   <!-- Offline Vendored JSZip -->
   <script src="static/js/jszip.min.js"></script>
   <!-- Application Logic -->
-  <script src="static/js/app.js?v=20260903_v9"></script>
+  <script src="static/js/app.js?v=20260903_v10"></script>
 </body>
 </html>
