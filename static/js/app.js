@@ -127,6 +127,11 @@ function initEventListeners() {
     btnShareEmail.addEventListener('click', handleShareProcess);
   }
 
+  const btnShareNativeApps = document.getElementById('btnShareNativeApps');
+  if (btnShareNativeApps) {
+    btnShareNativeApps.addEventListener('click', handleShareNativeApps);
+  }
+
   const btnBottomDownloadZip = document.getElementById('btnBottomDownloadZip');
   if (btnBottomDownloadZip) {
     btnBottomDownloadZip.addEventListener('click', handleDownloadZipProcess);
@@ -385,8 +390,11 @@ async function ensureZipGenerated(jobName, category, dateSent, shipDate, notes) 
 }
 
 /**
- * Handle "Share to Apps" button click
- * Instantly triggers native mobile/tablet share sheet with the ZIP file
+ * Handle "Open in Outlook" button click
+ * 1. Instantly packages all files into the ZIP archive (<Job> - <Category>.zip)
+ * 2. Downloads the ZIP archive directly to the phone
+ * 3. Immediately opens Outlook with Subject & Summary pre-filled
+ * 4. User simply taps the paperclip icon in Outlook to attach the downloaded ZIP
  */
 async function handleShareProcess() {
   if (!validateForm()) {
@@ -404,36 +412,49 @@ async function handleShareProcess() {
   currentSummaryHtml = buildHtmlSummary(jobName, category, dateSent, shipDate, notes);
   const shareTitle = `Field Dims: ${jobName} - ${category}`;
 
-  // 1. Instantly package all photos, PDFs, and notes into the ZIP file
-  const zipBlob = await ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
+  // 1. Instantly package all photos & files into ZIP container (<Job> - <Category>.zip)
+  await ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
 
-  const zipFile = new File([zipBlob], currentZipFilename, {
-    type: 'application/zip',
-    lastModified: Date.now()
-  });
+  // 2. Download the ZIP file to phone
+  downloadZipArchive();
 
-  // 2. Share the ZIP file directly to apps (Outlook, Gmail, etc.)
-  if (navigator.share) {
-    // Attempt 1: Attach ZIP file directly via Web Share API
-    if (navigator.canShare && navigator.canShare({ files: [zipFile] })) {
-      try {
-        await navigator.share({
-          title: shareTitle,
-          text: currentSummaryText,
-          files: [zipFile]
-        });
-        return;
-      } catch (err) {
-        if (err.name === 'AbortError') return; // User dismissed share sheet
-        console.warn('Direct zip share rejected by browser:', err);
-      }
+  // 3. Copy summary to clipboard as backup
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(currentSummaryText);
     }
+  } catch (e) {}
 
-    // Attempt 2: If browser blocks web pages from attaching .zip files directly:
-    // Download the ZIP file to phone, notify user to tap 📎 in Outlook, and open the app chooser!
-    downloadZipArchive();
-    showToast(`📥 "${currentZipFilename}" saved! In Outlook, tap 📎 to attach it.`);
+  // 4. Open Outlook immediately with Subject and Summary filled!
+  const mailtoUrl = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(currentSummaryText)}`;
+  window.location.href = mailtoUrl;
 
+  showToast(`✅ Summary in Outlook! Tap 📎 in Outlook to attach "${currentZipFilename}".`);
+}
+
+/**
+ * Handle "Apps" button click (Teams, WhatsApp, Quick Share, etc.)
+ */
+async function handleShareNativeApps() {
+  if (!validateForm()) {
+    showToast('⚠️ Please fill in all required fields marked with *');
+    return;
+  }
+
+  const jobName = document.getElementById('jobName').value.trim();
+  const category = document.getElementById('category').value.trim();
+  const dateSent = document.getElementById('dateSent').value.trim();
+  const shipDate = document.getElementById('shipDate').value.trim();
+  const notes = document.getElementById('notes').value.trim();
+
+  currentSummaryText = buildTextSummary(jobName, category, dateSent, shipDate, notes);
+  const shareTitle = `Field Dims: ${jobName} - ${category}`;
+
+  // Ensure ZIP is downloaded
+  await ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
+  downloadZipArchive();
+
+  if (navigator.share) {
     try {
       await navigator.share({
         title: shareTitle,
@@ -442,11 +463,10 @@ async function handleShareProcess() {
       return;
     } catch (err) {
       if (err.name === 'AbortError') return;
-      console.warn('Text share failed:', err);
+      console.warn('Native share dismissed:', err);
     }
   }
 
-  // Desktop only: show modal if browser lacks navigator.share
   openExportModal();
 }
 

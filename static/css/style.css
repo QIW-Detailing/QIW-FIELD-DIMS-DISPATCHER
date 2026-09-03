@@ -588,26 +588,28 @@ textarea.is-invalid {
   max-width: 760px;
   margin: 0 auto;
   display: flex;
-  gap: 0.75rem;
+  gap: 0.5rem;
+  align-items: center;
 }
 
 .btn-secondary-action {
   background: #ffffff;
   border: 1.5px solid #cbd5e1;
   color: #1e293b;
-  padding: 0.95rem 1rem;
+  padding: 0.85rem 0.9rem;
   border-radius: var(--radius-sm);
-  font-size: 0.92rem;
+  font-size: 0.88rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.45rem;
+  gap: 0.35rem;
   cursor: pointer;
   transition: all 0.15s;
-  min-height: 52px;
+  min-height: 50px;
   white-space: nowrap;
   box-shadow: var(--shadow-sm);
+  flex-shrink: 0;
 }
 
 .btn-secondary-action:active {
@@ -616,8 +618,8 @@ textarea.is-invalid {
 }
 
 .btn-secondary-action svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   stroke: #1e40af;
 }
 
@@ -626,19 +628,20 @@ textarea.is-invalid {
   background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
   color: #ffffff;
   border: none;
-  padding: 0.95rem 1.25rem;
+  padding: 0.85rem 1rem;
   border-radius: var(--radius-sm);
-  font-size: 1.05rem;
+  font-size: 0.98rem;
   font-weight: 700;
   letter-spacing: -0.01em;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.6rem;
+  gap: 0.45rem;
   cursor: pointer;
   box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
   transition: all 0.2s ease;
-  min-height: 52px; /* Touch target */
+  min-height: 50px;
+  white-space: nowrap;
 }
 
 .btn-primary-action:active {
