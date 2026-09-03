@@ -354,7 +354,40 @@ function hideError(id) {
 }
 
 /**
- * Main Share / Email Process
+ * Ensure ZIP archive is generated and cached
+ */
+async function ensureZipGenerated(jobName, category, dateSent, shipDate, notes) {
+  currentZipFilename = generateSafeFilename(jobName, category) + '.zip';
+
+  const zip = new JSZip();
+  const usedNames = new Set();
+  for (const item of attachedFiles) {
+    let fileName = item.name;
+    if (usedNames.has(fileName)) {
+      const parts = fileName.split('.');
+      const ext = parts.length > 1 ? '.' + parts.pop() : '';
+      const base = parts.join('.');
+      fileName = `${base}_${Math.floor(Math.random() * 1000)}${ext}`;
+    }
+    usedNames.add(fileName);
+    zip.file(fileName, item.file);
+  }
+
+  zip.file("JOB_SUMMARY.txt", buildTextSummary(jobName, category, dateSent, shipDate, notes));
+
+  generatedZipBlob = await zip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
+    compressionOptions: { level: 1 }
+  });
+
+  updateModalDetails(jobName, category);
+  return generatedZipBlob;
+}
+
+/**
+ * Handle "Share to Apps" button click
+ * Instantly triggers native mobile/tablet share sheet (Teams, WhatsApp, Gmail, Outlook, etc.)
  */
 async function handleShareProcess() {
   if (!validateForm()) {
@@ -362,78 +395,64 @@ async function handleShareProcess() {
     return;
   }
 
-  if (attachedFiles.length === 0) {
-    const confirmNoFiles = confirm("No files or photos are currently attached. Would you like to proceed without attachments?");
-    if (!confirmNoFiles) {
-      document.getElementById('dropZone').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const jobName = document.getElementById('jobName').value.trim();
+  const category = document.getElementById('category').value.trim();
+  const dateSent = document.getElementById('dateSent').value.trim();
+  const shipDate = document.getElementById('shipDate').value.trim();
+  const notes = document.getElementById('notes').value.trim();
+
+  currentSummaryText = buildTextSummary(jobName, category, dateSent, shipDate, notes);
+  currentSummaryHtml = buildHtmlSummary(jobName, category, dateSent, shipDate, notes);
+  const shareTitle = `Field Dims: ${jobName} - ${category}`;
+
+  // Start packaging ZIP in background without blocking the user touch event
+  ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
+
+  // DIRECT NATIVE SHARE - 0ms delay, keeps mobile touch activation 100% active!
+  if (navigator.share) {
+    const rawFiles = attachedFiles.map(f => f.file).filter(f => f instanceof File);
+
+    // 1. Try sharing original photos & documents directly to apps
+    if (rawFiles.length > 0 && navigator.canShare && navigator.canShare({ files: rawFiles })) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: currentSummaryText,
+          files: rawFiles
+        });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return; // User closed sheet
+        console.warn('File share dismissed or not supported:', err);
+      }
+    }
+
+    // 2. Direct text & summary share (Pops up native Android system share sheet immediately)
+    try {
+      await navigator.share({
+        title: shareTitle,
+        text: currentSummaryText
+      });
       return;
+    } catch (err) {
+      if (err.name === 'AbortError') return; // User closed sheet
+      console.warn('Native share failed:', err);
     }
   }
 
+  // Desktop only: show modal if browser lacks navigator.share
   const btn = document.getElementById('btnShareEmail');
   const originalBtnText = btn ? btn.innerHTML : '';
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="spinner" style="width:18px;height:18px;border-width:2px;display:inline-block;margin:0 6px 0 0;vertical-align:middle;"></svg> Packaging ZIP...`;
+    btn.innerHTML = `Packaging...`;
   }
-
-  try {
-    const jobName = document.getElementById('jobName').value.trim();
-    const category = document.getElementById('category').value.trim();
-    const dateSent = document.getElementById('dateSent').value.trim();
-    const shipDate = document.getElementById('shipDate').value.trim();
-    const notes = document.getElementById('notes').value.trim();
-
-    // 1. Generate safe ZIP filename: "<Job Number or Name> - <Category>.zip"
-    currentZipFilename = generateSafeFilename(jobName, category) + '.zip';
-
-    // 2. Fast Compress files into ZIP using JSZip (level 1 for instant response)
-    const zip = new JSZip();
-    const usedNames = new Set();
-
-    for (const item of attachedFiles) {
-      let fileName = item.name;
-      if (usedNames.has(fileName)) {
-        const parts = fileName.split('.');
-        const ext = parts.length > 1 ? '.' + parts.pop() : '';
-        const base = parts.join('.');
-        fileName = `${base}_${Math.floor(Math.random() * 1000)}${ext}`;
-      }
-      usedNames.add(fileName);
-      zip.file(fileName, item.file);
-    }
-
-    const summaryFileContent = buildTextSummary(jobName, category, dateSent, shipDate, notes);
-    zip.file("JOB_SUMMARY.txt", summaryFileContent);
-
-    generatedZipBlob = await zip.generateAsync({
-      type: 'blob',
-      compression: 'DEFLATE',
-      compressionOptions: { level: 1 }
-    });
-
-    currentSummaryText = buildTextSummary(jobName, category, dateSent, shipDate, notes);
-    currentSummaryHtml = buildHtmlSummary(jobName, category, dateSent, shipDate, notes);
-
-    updateModalDetails(jobName, category);
-
-    // Reset button
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = originalBtnText;
-    }
-
-    // Trigger Native Share directly to show mobile/tablet apps
-    await triggerNativeShare();
-
-  } catch (err) {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = originalBtnText;
-    }
-    console.error('Error in share process:', err);
-    alert('An error occurred during preparation: ' + err.message);
+  await ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = originalBtnText;
   }
+  openExportModal();
 }
 
 /**
@@ -449,7 +468,7 @@ async function handleDownloadZipProcess() {
   const originalBtnText = btn ? btn.innerHTML : '';
   if (btn) {
     btn.disabled = true;
-    btn.innerHTML = `Downloading...`;
+    btn.innerHTML = `Packaging ZIP...`;
   }
 
   try {
@@ -459,30 +478,7 @@ async function handleDownloadZipProcess() {
     const shipDate = document.getElementById('shipDate').value.trim();
     const notes = document.getElementById('notes').value.trim();
 
-    currentZipFilename = generateSafeFilename(jobName, category) + '.zip';
-
-    const zip = new JSZip();
-    const usedNames = new Set();
-    for (const item of attachedFiles) {
-      let fileName = item.name;
-      if (usedNames.has(fileName)) {
-        const parts = fileName.split('.');
-        const ext = parts.length > 1 ? '.' + parts.pop() : '';
-        const base = parts.join('.');
-        fileName = `${base}_${Math.floor(Math.random() * 1000)}${ext}`;
-      }
-      usedNames.add(fileName);
-      zip.file(fileName, item.file);
-    }
-
-    zip.file("JOB_SUMMARY.txt", buildTextSummary(jobName, category, dateSent, shipDate, notes));
-
-    generatedZipBlob = await zip.generateAsync({
-      type: 'blob',
-      compression: 'DEFLATE',
-      compressionOptions: { level: 1 }
-    });
-
+    await ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
     downloadZipArchive();
 
     if (btn) {
@@ -499,71 +495,10 @@ async function handleDownloadZipProcess() {
 }
 
 /**
- * Trigger native mobile share sheet
+ * Compatibility alias for modal share button
  */
-async function triggerNativeShare() {
-  if (!generatedZipBlob) return;
-
-  const jobName = document.getElementById('jobName').value.trim();
-  const category = document.getElementById('category').value.trim();
-  const shareTitle = `Field Dims: ${jobName} - ${category}`;
-
-  // If browser supports navigator.share (Mobile / Tablet)
-  if (navigator.share) {
-    const zipFile = new File([generatedZipBlob], currentZipFilename, {
-      type: 'application/zip',
-      lastModified: Date.now()
-    });
-
-    // 1. Try sharing ZIP file directly (works on iOS/iPadOS Safari & supported Android browsers)
-    if (navigator.canShare && navigator.canShare({ files: [zipFile] })) {
-      try {
-        await navigator.share({
-          title: shareTitle,
-          text: currentSummaryText,
-          files: [zipFile]
-        });
-        return;
-      } catch (err) {
-        if (err.name === 'AbortError') return; // User closed sheet
-        console.warn('Sharing with ZIP file not allowed by browser:', err);
-      }
-    }
-
-    // 2. Try sharing photos and documents directly if device allows them
-    if (attachedFiles.length > 0) {
-      const rawFiles = attachedFiles.map(f => f.file);
-      if (navigator.canShare && navigator.canShare({ files: rawFiles })) {
-        try {
-          await navigator.share({
-            title: shareTitle,
-            text: currentSummaryText,
-            files: rawFiles
-          });
-          return;
-        } catch (err) {
-          if (err.name === 'AbortError') return;
-          console.warn('Sharing raw files failed:', err);
-        }
-      }
-    }
-
-    // 3. Fallback: Share subject and summary text directly to apps (Outlook, Gmail, etc.)
-    // Note: Do NOT call downloadZipArchive() here so the browser user activation is not consumed!
-    try {
-      await navigator.share({
-        title: shareTitle,
-        text: currentSummaryText
-      });
-      return;
-    } catch (err) {
-      if (err.name === 'AbortError') return;
-      console.warn('Text share failed:', err);
-    }
-  }
-
-  // Desktop fallback: open the clean 2-button modal
-  openExportModal();
+function triggerNativeShare() {
+  handleShareProcess();
 }
 
 /**
