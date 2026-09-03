@@ -121,10 +121,15 @@ function initEventListeners() {
     btnBrowse.addEventListener('click', () => fileInputAll.click());
   }
 
-  // Primary Action: Share to Email
+  // Primary Bottom Actions
   const btnShareEmail = document.getElementById('btnShareEmail');
   if (btnShareEmail) {
     btnShareEmail.addEventListener('click', handleShareProcess);
+  }
+
+  const btnBottomDownloadZip = document.getElementById('btnBottomDownloadZip');
+  if (btnBottomDownloadZip) {
+    btnBottomDownloadZip.addEventListener('click', handleDownloadZipProcess);
   }
 
   // Reset form button in header
@@ -133,7 +138,7 @@ function initEventListeners() {
     btnReset.addEventListener('click', resetForm);
   }
 
-  // Modal Actions
+  // Modal Actions (Only Share to Apps and Download ZIP)
   const btnModalShare = document.getElementById('btnModalShare');
   if (btnModalShare) {
     btnModalShare.addEventListener('click', triggerNativeShare);
@@ -142,21 +147,6 @@ function initEventListeners() {
   const btnModalDownloadZip = document.getElementById('btnModalDownloadZip');
   if (btnModalDownloadZip) {
     btnModalDownloadZip.addEventListener('click', downloadZipArchive);
-  }
-
-  const btnModalDownloadEml = document.getElementById('btnModalDownloadEml');
-  if (btnModalDownloadEml) {
-    btnModalDownloadEml.addEventListener('click', downloadOutlookEml);
-  }
-
-  const btnModalMailto = document.getElementById('btnModalMailto');
-  if (btnModalMailto) {
-    btnModalMailto.addEventListener('click', openMailto);
-  }
-
-  const btnModalCopy = document.getElementById('btnModalCopy');
-  if (btnModalCopy) {
-    btnModalCopy.addEventListener('click', copySummaryToClipboard);
   }
 
   const modalCloseBtn = document.getElementById('modalCloseBtn');
@@ -376,7 +366,12 @@ async function handleShareProcess() {
     }
   }
 
-  showLoading(true, 'Packaging ZIP Archive', 'Compressing attached files...');
+  const btn = document.getElementById('btnShareEmail');
+  const originalBtnText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="spinner" style="width:18px;height:18px;border-width:2px;display:inline-block;margin:0 6px 0 0;vertical-align:middle;"></svg> Packaging ZIP...`;
+  }
 
   try {
     const jobName = document.getElementById('jobName').value.trim();
@@ -388,13 +383,12 @@ async function handleShareProcess() {
     // 1. Generate safe ZIP filename: "<Job Number or Name> - <Category>.zip"
     currentZipFilename = generateSafeFilename(jobName, category) + '.zip';
 
-    // 2. Compress files into ZIP using JSZip
+    // 2. Fast Compress files into ZIP using JSZip (level 1 for instant response)
     const zip = new JSZip();
     const usedNames = new Set();
 
     for (const item of attachedFiles) {
       let fileName = item.name;
-      // Prevent colliding names inside zip
       if (usedNames.has(fileName)) {
         const parts = fileName.split('.');
         const ext = parts.length > 1 ? '.' + parts.pop() : '';
@@ -405,59 +399,103 @@ async function handleShareProcess() {
       zip.file(fileName, item.file);
     }
 
-    // Add a text summary file inside the ZIP as well for convenience
     const summaryFileContent = buildTextSummary(jobName, category, dateSent, shipDate, notes);
     zip.file("JOB_SUMMARY.txt", summaryFileContent);
 
     generatedZipBlob = await zip.generateAsync({
       type: 'blob',
       compression: 'DEFLATE',
-      compressionOptions: { level: 6 }
+      compressionOptions: { level: 1 }
     });
 
-    // 3. Prepare summary strings
     currentSummaryText = buildTextSummary(jobName, category, dateSent, shipDate, notes);
     currentSummaryHtml = buildHtmlSummary(jobName, category, dateSent, shipDate, notes);
 
-    showLoading(false);
+    updateModalDetails(jobName, category);
 
-    // 4. Update UI modal details
-    updateModalDetails(jobName, category, dateSent, shipDate, notes);
+    // Reset button
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalBtnText;
+    }
 
-    // 5. Check if native Web Share API supports file sharing (Mobile/Tablets)
-    const canShareFiles = testCanShareFile();
+    // Trigger Native Share directly to show mobile/tablet apps
+    await triggerNativeShare();
 
-    if (canShareFiles) {
-      // Attempt native share directly
-      await triggerNativeShare();
-    } else {
-      // On desktop or browsers without file sharing, open the options modal
-      openExportModal();
+  } catch (err) {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalBtnText;
+    }
+    console.error('Error in share process:', err);
+    alert('An error occurred during preparation: ' + err.message);
+  }
+}
+
+/**
+ * Handle direct "Download ZIP" button click
+ */
+async function handleDownloadZipProcess() {
+  if (!validateForm()) {
+    showToast('⚠️ Please fill in all required fields marked with *');
+    return;
+  }
+
+  const btn = document.getElementById('btnBottomDownloadZip');
+  const originalBtnText = btn ? btn.innerHTML : '';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `Downloading...`;
+  }
+
+  try {
+    const jobName = document.getElementById('jobName').value.trim();
+    const category = document.getElementById('category').value.trim();
+    const dateSent = document.getElementById('dateSent').value.trim();
+    const shipDate = document.getElementById('shipDate').value.trim();
+    const notes = document.getElementById('notes').value.trim();
+
+    currentZipFilename = generateSafeFilename(jobName, category) + '.zip';
+
+    const zip = new JSZip();
+    const usedNames = new Set();
+    for (const item of attachedFiles) {
+      let fileName = item.name;
+      if (usedNames.has(fileName)) {
+        const parts = fileName.split('.');
+        const ext = parts.length > 1 ? '.' + parts.pop() : '';
+        const base = parts.join('.');
+        fileName = `${base}_${Math.floor(Math.random() * 1000)}${ext}`;
+      }
+      usedNames.add(fileName);
+      zip.file(fileName, item.file);
+    }
+
+    zip.file("JOB_SUMMARY.txt", buildTextSummary(jobName, category, dateSent, shipDate, notes));
+
+    generatedZipBlob = await zip.generateAsync({
+      type: 'blob',
+      compression: 'DEFLATE',
+      compressionOptions: { level: 1 }
+    });
+
+    downloadZipArchive();
+
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalBtnText;
     }
   } catch (err) {
-    showLoading(false);
-    console.error('Error creating ZIP archive:', err);
-    alert('An error occurred during ZIP compression: ' + err.message);
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = originalBtnText;
+    }
+    alert('Error creating ZIP: ' + err.message);
   }
 }
 
 /**
- * Test whether device browser supports sharing files via Web Share API
- */
-function testCanShareFile() {
-  if (!navigator.canShare || !navigator.share || !window.File) {
-    return false;
-  }
-  try {
-    const dummyFile = new File(['test'], 'test.txt', { type: 'text/plain' });
-    return navigator.canShare({ files: [dummyFile] });
-  } catch (e) {
-    return false;
-  }
-}
-
-/**
- * Trigger native mobile share sheet with ZIP file attached
+ * Trigger native mobile share sheet with ZIP file
  */
 async function triggerNativeShare() {
   if (!generatedZipBlob) return;
@@ -466,37 +504,50 @@ async function triggerNativeShare() {
   const category = document.getElementById('category').value.trim();
   const shareTitle = `Field Dims: ${jobName} - ${category}`;
 
-  try {
-    const zipFile = new File([generatedZipBlob], currentZipFilename, {
-      type: 'application/zip',
-      lastModified: Date.now()
-    });
+  const zipFile = new File([generatedZipBlob], currentZipFilename, {
+    type: 'application/zip',
+    lastModified: Date.now()
+  });
 
-    if (navigator.canShare && navigator.canShare({ files: [zipFile] })) {
-      await navigator.share({
-        title: shareTitle,
-        text: currentSummaryText,
-        files: [zipFile]
-      });
-      showToast('✅ Shared successfully!');
-    } else if (navigator.share) {
-      // Can share text only
-      await navigator.share({
-        title: shareTitle,
-        text: currentSummaryText
-      });
-      // Also download zip for user
-      downloadZipArchive();
-      showToast('✅ Summary shared! ZIP file downloaded.');
-    } else {
-      openExportModal();
+  // If browser supports navigator.share (Mobile / Tablet)
+  if (navigator.share) {
+    let shared = false;
+
+    // First attempt: Share with ZIP file attached
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [zipFile] })) {
+        await navigator.share({
+          title: shareTitle,
+          text: currentSummaryText,
+          files: [zipFile]
+        });
+        shared = true;
+      }
+    } catch (e) {
+      if (e.name === 'AbortError') return; // User closed sheet
+      console.warn('Direct file share not permitted by device, falling back to text share:', e);
     }
-  } catch (err) {
-    if (err.name !== 'AbortError') {
-      console.warn('Share sheet was dismissed or failed:', err);
-      // Fallback: show modal
-      openExportModal();
+
+    // Second attempt if files not supported by device's browser whitelist:
+    if (!shared) {
+      try {
+        // Automatically download the zip file so the user has it ready
+        downloadZipArchive();
+        // Open the native app picker with summary
+        await navigator.share({
+          title: shareTitle,
+          text: currentSummaryText
+        });
+        shared = true;
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        console.warn('Share was dismissed or failed:', e);
+        openExportModal();
+      }
     }
+  } else {
+    // Desktop fallback: open the clean 2-button modal
+    openExportModal();
   }
 }
 
@@ -511,84 +562,16 @@ function openExportModal() {
 }
 
 /**
- * Populate modal with the active job info and summary preview
+ * Populate modal with the active job info
  */
-function updateModalDetails(jobName, category, dateSent, shipDate, notes) {
+function updateModalDetails(jobName, category) {
   const modalZipName = document.getElementById('modalZipName');
   const modalZipMeta = document.getElementById('modalZipMeta');
-  const modalSummaryPreview = document.getElementById('modalSummaryPreview');
 
   if (modalZipName) modalZipName.textContent = currentZipFilename;
   if (modalZipMeta) {
     const sizeStr = formatBytes(generatedZipBlob ? generatedZipBlob.size : 0);
     modalZipMeta.textContent = `${attachedFiles.length} file(s) &bull; ${sizeStr} archive`;
-  }
-
-  if (modalSummaryPreview) {
-    modalSummaryPreview.innerHTML = `
-      <div class="preview-title">Outlook Summary Details</div>
-      <table class="summary-table">
-        <tr><td>Job Number / Name:</td><td><strong>${escapeHtml(jobName)}</strong></td></tr>
-        <tr><td>Category:</td><td>${escapeHtml(category)}</td></tr>
-        <tr><td>Date Sent (Dims):</td><td>${escapeHtml(dateSent)}</td></tr>
-        <tr><td>Ship Date:</td><td>${escapeHtml(shipDate)}</td></tr>
-        <tr><td>Additional Notes:</td><td>${notes ? escapeHtml(notes).replace(/\n/g, '<br>') : '<em>None</em>'}</td></tr>
-        <tr><td>ZIP Archive:</td><td><code>${escapeHtml(currentZipFilename)}</code></td></tr>
-      </table>
-    `;
-  }
-}
-
-/**
- * Generate and download an .eml file that opens directly in Microsoft Outlook
- * with HTML body and the ZIP file attached!
- */
-async function downloadOutlookEml() {
-  if (!generatedZipBlob) return;
-
-  showLoading(true, 'Preparing Outlook Email', 'Embedding ZIP attachment into email draft...');
-
-  try {
-    const jobName = document.getElementById('jobName').value.trim();
-    const category = document.getElementById('category').value.trim();
-    const subject = `Field Dims: ${jobName} - ${category}`;
-
-    // Read ZIP blob as base64
-    const zipBase64 = await blobToBase64(generatedZipBlob);
-    const boundary = "boundary_field_dims_" + Date.now().toString(16);
-
-    const emlContent = [
-      `MIME-Version: 1.0`,
-      `Subject: ${subject}`,
-      `Date: ${new Date().toUTCString()}`,
-      `Content-Type: multipart/mixed; boundary="${boundary}"`,
-      ``,
-      `--${boundary}`,
-      `Content-Type: text/html; charset=UTF-8`,
-      `Content-Transfer-Encoding: 7bit`,
-      ``,
-      currentSummaryHtml,
-      ``,
-      `--${boundary}`,
-      `Content-Type: application/zip; name="${currentZipFilename}"`,
-      `Content-Disposition: attachment; filename="${currentZipFilename}"`,
-      `Content-Transfer-Encoding: base64`,
-      ``,
-      zipBase64,
-      ``,
-      `--${boundary}--`
-    ].join('\r\n');
-
-    const emlBlob = new Blob([emlContent], { type: 'message/rfc822' });
-    const emlFilename = `${generateSafeFilename(jobName, category)}.eml`;
-    triggerDownload(emlBlob, emlFilename);
-
-    showLoading(false);
-    showToast('✉️ Outlook draft downloaded! Double-click to open in Outlook.');
-  } catch (err) {
-    showLoading(false);
-    console.error('Error generating EML:', err);
-    alert('Could not generate Outlook .eml file: ' + err.message);
   }
 }
 
@@ -599,48 +582,6 @@ function downloadZipArchive() {
   if (!generatedZipBlob) return;
   triggerDownload(generatedZipBlob, currentZipFilename);
   showToast('📥 ZIP archive downloaded!');
-}
-
-/**
- * Open Outlook / default email client via mailto: URL
- */
-function openMailto() {
-  const jobName = document.getElementById('jobName').value.trim();
-  const category = document.getElementById('category').value.trim();
-  const subject = encodeURIComponent(`Field Dims: ${jobName} - ${category}`);
-  const body = encodeURIComponent(currentSummaryText);
-
-  // Copy summary to clipboard just in case
-  copySummaryToClipboard(false);
-
-  // Trigger download of zip so user can easily attach it
-  downloadZipArchive();
-
-  window.location.href = `mailto:?subject=${subject}&body=${body}`;
-  showToast('📧 Opened email client! (ZIP downloaded to attach)');
-}
-
-/**
- * Copy summary text to clipboard
- */
-async function copySummaryToClipboard(notify = true) {
-  try {
-    await navigator.clipboard.writeText(currentSummaryText);
-    if (notify) {
-      showToast('📋 Summary copied to clipboard!');
-    }
-  } catch (err) {
-    // Fallback
-    const textarea = document.createElement('textarea');
-    textarea.value = currentSummaryText;
-    document.body.appendChild(textarea);
-    textarea.select();
-    document.execCommand('copy');
-    document.body.removeChild(textarea);
-    if (notify) {
-      showToast('📋 Summary copied to clipboard!');
-    }
-  }
 }
 
 /**

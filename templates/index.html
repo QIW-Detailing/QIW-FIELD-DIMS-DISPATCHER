@@ -193,12 +193,23 @@
   <!-- Sticky Bottom Bar for Mobile & Tablet -->
   <aside class="sticky-bottom-bar">
     <div class="bottom-bar-container">
+      <button type="button" class="btn-secondary-action" id="btnBottomDownloadZip" title="Download ZIP file directly">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Download ZIP
+      </button>
       <button type="button" class="btn-primary-action" id="btnShareEmail">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-          <polyline points="22,6 12,13 2,6"></polyline>
+          <circle cx="18" cy="5" r="3"></circle>
+          <circle cx="6" cy="12" r="3"></circle>
+          <circle cx="18" cy="19" r="3"></circle>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+          <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
         </svg>
-        Share to Email (Outlook / Gmail)
+        Share to Apps
       </button>
     </div>
   </aside>
@@ -207,10 +218,10 @@
   <div class="loading-overlay" id="loadingOverlay">
     <div class="spinner"></div>
     <div class="loading-title" id="loadingTitle">Compressing Files...</div>
-    <div class="loading-subtitle" id="loadingSubtitle">Packaging files into ZIP and formatting Outlook summary</div>
+    <div class="loading-subtitle" id="loadingSubtitle">Packaging files into ZIP</div>
   </div>
 
-  <!-- Export Options Modal -->
+  <!-- Export Options Modal (Only 2 options: Share to Apps or Download ZIP) -->
   <div class="modal" id="exportModal">
     <div class="modal-content">
       <div class="modal-header">
@@ -219,7 +230,7 @@
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
             <polyline points="22 4 12 14.01 9 11.01"></polyline>
           </svg>
-          ZIP Created & Ready to Send
+          ZIP Archive Ready
         </h3>
         <button type="button" class="modal-close-btn" id="modalCloseBtn">&times;</button>
       </div>
@@ -240,7 +251,7 @@
           </div>
         </div>
 
-        <!-- Export Buttons List -->
+        <!-- Export Buttons: ONLY TWO BUTTONS -->
         <div class="export-options-list">
           <button type="button" class="btn-export-option primary-option" id="btnModalShare">
             <div class="export-option-icon">
@@ -253,21 +264,8 @@
               </svg>
             </div>
             <div class="export-option-content">
-              <div class="export-option-title">Share to Outlook / Gmail (Mobile/Tablet)</div>
-              <div class="export-option-desc">Opens system share sheet with ZIP attached directly to email</div>
-            </div>
-          </button>
-
-          <button type="button" class="btn-export-option" id="btnModalDownloadEml">
-            <div class="export-option-icon" style="background: #e0f2fe; color: #0284c7;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
-                <polyline points="22,6 12,13 2,6"></polyline>
-              </svg>
-            </div>
-            <div class="export-option-content">
-              <div class="export-option-title">Open in Microsoft Outlook (.eml)</div>
-              <div class="export-option-desc">Downloads ready-to-send draft with ZIP file already attached inside</div>
+              <div class="export-option-title">Share to Apps (Outlook / Gmail)</div>
+              <div class="export-option-desc">Open apps on your mobile or tablet to share the ZIP file</div>
             </div>
           </button>
 
@@ -281,41 +279,13 @@
             </div>
             <div class="export-option-content">
               <div class="export-option-title">Download ZIP File</div>
-              <div class="export-option-desc">Save compressed archive locally</div>
-            </div>
-          </button>
-
-          <button type="button" class="btn-export-option" id="btnModalMailto">
-            <div class="export-option-icon" style="background: #fef3c7; color: #d97706;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
-            </div>
-            <div class="export-option-content">
-              <div class="export-option-title">Open Default Mail Client (mailto:)</div>
-              <div class="export-option-desc">Opens compose window with subject & body summary</div>
-            </div>
-          </button>
-
-          <button type="button" class="btn-export-option" id="btnModalCopy">
-            <div class="export-option-icon" style="background: #f1f5f9; color: #475569;">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-              </svg>
-            </div>
-            <div class="export-option-content">
-              <div class="export-option-title">Copy Summary to Clipboard</div>
-              <div class="export-option-desc">Paste directly into Teams, email body, or notes</div>
+              <div class="export-option-desc">Save the compressed archive directly to your device</div>
             </div>
           </button>
         </div>
-
-        <!-- Summary Preview Box -->
-        <div class="outlook-summary-preview" id="modalSummaryPreview"></div>
       </div>
     </div>
+  </div>
   <!-- Photo Markup & Annotation Studio Modal -->
   <div class="markup-modal" id="markupModal">
     <div class="markup-header">
