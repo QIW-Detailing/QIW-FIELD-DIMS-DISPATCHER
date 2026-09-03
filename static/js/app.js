@@ -877,13 +877,15 @@ function showToast(msg) {
 // ==========================================
 
 let markupActiveFileId = null;
-let markupTool = 'pen'; // 'pen', 'arrow', 'text', 'box'
+let markupTool = 'pen'; // 'pen', 'arrow', 'text', 'box', 'eraser'
 let markupColor = '#ef4444';
 let markupLineWidth = 6;
 let markupHistory = [];
 let isMarkupDrawing = false;
 let markupStartX = 0;
 let markupStartY = 0;
+let lastPointerX = 0;
+let lastPointerY = 0;
 let markupCanvasSnapshot = null;
 let currentLoadedImage = null;
 
@@ -908,6 +910,8 @@ function initMarkupStudio() {
         instructions.textContent = '🔤 Tap on the photo to enter a dimension or note.';
       } else if (markupTool === 'box') {
         instructions.textContent = '🔲 Touch and drag to draw a highlight box.';
+      } else if (markupTool === 'eraser') {
+        instructions.textContent = '🧹 Drag your finger to erase marks and reveal the original photo.';
       }
     });
   });
@@ -932,7 +936,7 @@ function initMarkupStudio() {
     });
   });
 
-  // Action Buttons
+  // Action Buttons (Header)
   const btnUndo = document.getElementById('btnMarkupUndo');
   if (btnUndo) btnUndo.addEventListener('click', undoLastMarkup);
 
@@ -944,6 +948,13 @@ function initMarkupStudio() {
 
   const btnSave = document.getElementById('btnMarkupSave');
   if (btnSave) btnSave.addEventListener('click', saveMarkupChanges);
+
+  // Dedicated Bottom Action Bar Buttons
+  const btnBottomSave = document.getElementById('btnMarkupBottomSave');
+  if (btnBottomSave) btnBottomSave.addEventListener('click', saveMarkupChanges);
+
+  const btnBottomCancel = document.getElementById('btnMarkupBottomCancel');
+  if (btnBottomCancel) btnBottomCancel.addEventListener('click', closeMarkupEditor);
 
   // Canvas Pointer Events
   canvas.addEventListener('pointerdown', handlePointerDown);
@@ -981,6 +992,8 @@ function handlePointerDown(e) {
   const coords = getCanvasCoords(e, canvas);
   markupStartX = coords.x;
   markupStartY = coords.y;
+  lastPointerX = coords.x;
+  lastPointerY = coords.y;
 
   if (markupTool === 'text') {
     const userText = prompt('Enter dimension or note to write on photo:', '');
@@ -1002,6 +1015,8 @@ function handlePointerDown(e) {
     ctx.lineJoin = 'round';
     ctx.strokeStyle = markupColor;
     ctx.lineWidth = markupLineWidth;
+  } else if (markupTool === 'eraser') {
+    eraseLine(ctx, coords.x, coords.y, coords.x, coords.y, markupLineWidth * 4);
   }
 }
 
@@ -1023,6 +1038,10 @@ function handlePointerMove(e) {
     ctx.strokeStyle = markupColor;
     ctx.lineWidth = markupLineWidth;
     ctx.strokeRect(markupStartX, markupStartY, coords.x - markupStartX, coords.y - markupStartY);
+  } else if (markupTool === 'eraser') {
+    eraseLine(ctx, lastPointerX, lastPointerY, coords.x, coords.y, markupLineWidth * 4);
+    lastPointerX = coords.x;
+    lastPointerY = coords.y;
   }
 }
 
@@ -1039,6 +1058,27 @@ function handlePointerCancel(e) {
   if (isMarkupDrawing) {
     isMarkupDrawing = false;
     undoLastMarkup();
+  }
+}
+
+function eraseLine(ctx, x1, y1, x2, y2, width) {
+  if (!currentLoadedImage) return;
+  const canvas = document.getElementById('markupCanvas');
+  const dist = Math.hypot(x2 - x1, y2 - y1);
+  const steps = Math.max(1, Math.ceil(dist / 4));
+  const radius = Math.max(14, width / 2);
+
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const xi = x1 + (x2 - x1) * t;
+    const yi = y1 + (y2 - y1) * t;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(xi, yi, radius, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.drawImage(currentLoadedImage, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
   }
 }
 
@@ -1147,7 +1187,14 @@ window.openMarkupEditor = function(fileId) {
   markupHistory = [];
 
   const titleEl = document.getElementById('markupPhotoTitle');
-  if (titleEl) titleEl.textContent = `Markup: ${fileObj.name}`;
+  if (titleEl) {
+    const rawName = fileObj.name || 'Photo';
+    const shortName = rawName.length > 20 
+      ? rawName.substring(0, 10) + '...' + rawName.substring(rawName.length - 8)
+      : rawName;
+    titleEl.textContent = `Markup: ${shortName}`;
+    titleEl.title = rawName;
+  }
 
   const canvas = document.getElementById('markupCanvas');
   const ctx = canvas.getContext('2d');

@@ -359,6 +359,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>
           Box
         </button>
+        <button type="button" class="markup-tool-btn" data-tool="eraser" id="toolEraser" title="Eraser (Erase marks)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13.5l-6 6a2.121 2.121 0 0 1-3 0l-7-7a2.121 2.121 0 0 1 0-3l9-9a2.121 2.121 0 0 1 3 0l7 7a2.121 2.121 0 0 1 0 3z"></path><path d="M6 18h14"></path></svg>
+          Eraser
+        </button>
       </div>
 
       <!-- Color Swatches -->
@@ -392,6 +396,19 @@
 
     <div class="markup-instructions" id="markupInstructionText">
       ✏️ Draw with your finger or stylus. Tap "Text / Dims" to stamp dimension measurements.
+    </div>
+
+    <!-- Dedicated Save & Cancel Action Bar -->
+    <div class="markup-bottom-bar">
+      <button type="button" class="btn-markup-bottom-cancel" id="btnMarkupBottomCancel">
+        ✕ Cancel
+      </button>
+      <button type="button" class="btn-markup-bottom-save" id="btnMarkupBottomSave">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        Save Changes to Photo
+      </button>
     </div>
   </div>
 
