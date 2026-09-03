@@ -1,6 +1,6 @@
-# Field Dimensions & Job Dispatch Web Application
+# QIW- Field dimention dispatcher
 
-A modern, responsive web application designed for mobile phones, tablets, and desktop workstations. Field workers can log job details, capture site photos or upload documents, automatically package everything into a standardized ZIP file (`<Job Number or Name> - <Category>.zip`), and share directly into **Outlook** or **Gmail** with the ZIP file attached.
+A modern, responsive web application designed for mobile phones, tablets, and desktop workstations. Field workers can log job details, capture site photos or upload documents, annotate/write dimensions on photos, automatically package everything into a standardized ZIP file (`<Job Number or Name> - <Category>.zip`), and share directly into **Outlook** or **Gmail** with the ZIP file attached.
 
 ---
 
@@ -8,16 +8,24 @@ A modern, responsive web application designed for mobile phones, tablets, and de
 
 1. **Required Fields (*)**:
    - **Job Number / Job Name** (Required)
-   - **Category** (Required - with quick-tap category chips + custom entry)
+   - **Category (What Field Dims Are For)** (Required - freeform entry for canopy, stairs, railings, etc.)
    - **Date of Sending Field Dims** (Required - pre-filled with **today's date** by default)
    - **Ship Date** (Required)
 2. **Optional Notes**:
    - **Additional Notes** (Optional - no star, included in the email summary)
-3. **Multi-Format File & Photo Upload**:
+3. **Multi-Format File & Photo Upload + In-App Photo Markup Studio**:
    - Drag-and-drop zone
    - 📷 One-tap **Take Photo / Camera** button for mobile/tablets
    - 📄 **Browse Documents** for PDFs, CAD/DWG, Excel, Word, or any file type
-   - Live attachment list with image previews, file sizes, and delete controls
+   - ✏️ **Photo Markup Studio (Write & Draw on Photos)**:
+     - Tap **"Markup"** on any attached photo to open the canvas editor.
+     - **🔤 Write Text & Measurements**: Type measurements (e.g. `48 1/2"`, `Check Elevation`, `Verify Clearance`) with high-contrast text badges.
+     - **➡️ Dimension Arrows**: Touch and drag to draw directional arrows pointing at joints, beams, or openings.
+     - **✏️ Freehand Pen**: Draw circles, underline, or handwrite notes using your finger or stylus.
+     - **🔲 Highlight Box**: Draw rectangles around critical areas.
+     - **Colors & Strokes**: Red 🔴, Yellow 🟡, Green 🟢, Blue 🔵, White ⚪, Black ⚫ in Fine, Medium, or Bold.
+     - **Undo & Clear**: Step back or revert changes.
+     - **Save & Apply**: Instantly updates the photo in the attachment list and embeds it into the final ZIP archive!
 4. **Automated ZIP Compression**:
    - Compresses all attached files into one `.zip` file named:
      ```
