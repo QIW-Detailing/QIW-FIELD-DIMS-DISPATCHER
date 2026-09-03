@@ -141,7 +141,11 @@ function initEventListeners() {
   // Modal Actions (Only Share to Apps and Download ZIP)
   const btnModalShare = document.getElementById('btnModalShare');
   if (btnModalShare) {
-    btnModalShare.addEventListener('click', triggerNativeShare);
+    btnModalShare.addEventListener('click', () => {
+      const modal = document.getElementById('exportModal');
+      if (modal) modal.classList.remove('active');
+      triggerNativeShare();
+    });
   }
 
   const btnModalDownloadZip = document.getElementById('btnModalDownloadZip');
@@ -495,7 +499,7 @@ async function handleDownloadZipProcess() {
 }
 
 /**
- * Trigger native mobile share sheet with ZIP file
+ * Trigger native mobile share sheet
  */
 async function triggerNativeShare() {
   if (!generatedZipBlob) return;
@@ -504,51 +508,62 @@ async function triggerNativeShare() {
   const category = document.getElementById('category').value.trim();
   const shareTitle = `Field Dims: ${jobName} - ${category}`;
 
-  const zipFile = new File([generatedZipBlob], currentZipFilename, {
-    type: 'application/zip',
-    lastModified: Date.now()
-  });
-
   // If browser supports navigator.share (Mobile / Tablet)
   if (navigator.share) {
-    let shared = false;
+    const zipFile = new File([generatedZipBlob], currentZipFilename, {
+      type: 'application/zip',
+      lastModified: Date.now()
+    });
 
-    // First attempt: Share with ZIP file attached
-    try {
-      if (navigator.canShare && navigator.canShare({ files: [zipFile] })) {
+    // 1. Try sharing ZIP file directly (works on iOS/iPadOS Safari & supported Android browsers)
+    if (navigator.canShare && navigator.canShare({ files: [zipFile] })) {
+      try {
         await navigator.share({
           title: shareTitle,
           text: currentSummaryText,
           files: [zipFile]
         });
-        shared = true;
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return; // User closed sheet
+        console.warn('Sharing with ZIP file not allowed by browser:', err);
       }
-    } catch (e) {
-      if (e.name === 'AbortError') return; // User closed sheet
-      console.warn('Direct file share not permitted by device, falling back to text share:', e);
     }
 
-    // Second attempt if files not supported by device's browser whitelist:
-    if (!shared) {
-      try {
-        // Automatically download the zip file so the user has it ready
-        downloadZipArchive();
-        // Open the native app picker with summary
-        await navigator.share({
-          title: shareTitle,
-          text: currentSummaryText
-        });
-        shared = true;
-      } catch (e) {
-        if (e.name === 'AbortError') return;
-        console.warn('Share was dismissed or failed:', e);
-        openExportModal();
+    // 2. Try sharing photos and documents directly if device allows them
+    if (attachedFiles.length > 0) {
+      const rawFiles = attachedFiles.map(f => f.file);
+      if (navigator.canShare && navigator.canShare({ files: rawFiles })) {
+        try {
+          await navigator.share({
+            title: shareTitle,
+            text: currentSummaryText,
+            files: rawFiles
+          });
+          return;
+        } catch (err) {
+          if (err.name === 'AbortError') return;
+          console.warn('Sharing raw files failed:', err);
+        }
       }
     }
-  } else {
-    // Desktop fallback: open the clean 2-button modal
-    openExportModal();
+
+    // 3. Fallback: Share subject and summary text directly to apps (Outlook, Gmail, etc.)
+    // Note: Do NOT call downloadZipArchive() here so the browser user activation is not consumed!
+    try {
+      await navigator.share({
+        title: shareTitle,
+        text: currentSummaryText
+      });
+      return;
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      console.warn('Text share failed:', err);
+    }
   }
+
+  // Desktop fallback: open the clean 2-button modal
+  openExportModal();
 }
 
 /**
