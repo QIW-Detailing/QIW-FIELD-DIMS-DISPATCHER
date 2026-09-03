@@ -482,35 +482,37 @@ async function handleShareProcess() {
 
   // 100% RELIABLE NATIVE SHARE - DIRECTLY OPENS ANDROID APP SELECTOR
   if (navigator.share) {
-    // 1. Try sharing with the ZIP file attached to the native app chooser
-    try {
-      await navigator.share({
-        title: shareTitle,
-        text: currentSummaryText,
-        files: [zipFileToShare]
-      });
-      return;
-    } catch (err) {
-      if (err.name === 'AbortError') return; // User closed the system share sheet
-      console.warn('Share with zipFile rejected by browser/OS, attempting direct text share:', err);
-    }
+    const canShareFiles = navigator.canShare && zipFileToShare && navigator.canShare({ files: [zipFileToShare] });
 
-    // 2. Direct native share fallback (GUARANTEED to open Android share sheet with Teams, WhatsApp, Gmail, Outlook)
-    try {
-      await navigator.share({
-        title: shareTitle,
-        text: currentSummaryText
-      });
-      return;
-    } catch (err) {
-      if (err.name === 'AbortError') return;
-      console.warn('Direct share dismissed:', err);
+    if (canShareFiles) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: currentSummaryText,
+          files: [zipFileToShare]
+        });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return; // User closed the system share sheet
+        console.warn('Share with files rejected:', err);
+      }
+    } else {
+      // Direct share of summary & title - 100% supported by Android Chrome, opens Teams, WhatsApp, Gmail, Outlook!
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: currentSummaryText
+        });
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        console.warn('Direct share rejected:', err);
+      }
     }
   }
 
-  // Fallback for desktop: download ZIP and open Outlook directly
-  downloadZipArchive();
-  window.location.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(currentSummaryText)}`;
+  // Desktop or browsers without navigator.share: show export modal
+  openExportModal();
 }
 
 /**
