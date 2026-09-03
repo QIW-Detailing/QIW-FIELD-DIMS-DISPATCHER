@@ -938,3 +938,247 @@ textarea.is-invalid {
   transform: translateX(-50%) translateY(0);
   opacity: 1;
 }
+
+/* Markup / Edit Button on File Card */
+.file-actions-col {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.btn-markup-file {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  padding: 0.35rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-markup-file:hover,
+.btn-markup-file:active {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  transform: translateY(-1px);
+}
+
+.btn-markup-file svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Photo Markup Studio Modal */
+.markup-modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(8px);
+  z-index: 3000;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.markup-modal.active {
+  display: flex;
+}
+
+.markup-header {
+  background: #1e293b;
+  color: #ffffff;
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #334155;
+  flex-shrink: 0;
+}
+
+.markup-header-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.markup-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-markup-action {
+  background: #334155;
+  color: #f1f5f9;
+  border: 1px solid #475569;
+  padding: 0.4rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.15s;
+}
+
+.btn-markup-action:hover,
+.btn-markup-action:active {
+  background: #475569;
+}
+
+.btn-markup-action.btn-save {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #ffffff;
+}
+
+.btn-markup-action.btn-save:hover {
+  background: #1d4ed8;
+}
+
+/* Markup Toolbar */
+.markup-toolbar {
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  padding: 0.6rem 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.markup-tool-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.tool-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: #94a3b8;
+  font-weight: 700;
+  margin-right: 0.2rem;
+}
+
+.markup-tool-btn {
+  background: #334155;
+  border: 1.5px solid #475569;
+  color: #cbd5e1;
+  padding: 0.4rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s;
+}
+
+.markup-tool-btn.active {
+  background: #2563eb;
+  border-color: #60a5fa;
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
+}
+
+.markup-tool-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Color Swatches */
+.markup-colors {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.color-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 2px solid #64748b;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+  padding: 0;
+}
+
+.color-swatch.active {
+  transform: scale(1.2);
+  border-color: #ffffff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.6);
+}
+
+/* Stroke Sizes */
+.stroke-sizes {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.stroke-btn {
+  background: #334155;
+  border: 1px solid #475569;
+  color: #cbd5e1;
+  padding: 0.3rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.stroke-btn.active {
+  background: #475569;
+  border-color: #94a3b8;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* Canvas Area */
+.markup-canvas-wrapper {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.75rem;
+  overflow: auto;
+  min-height: 0;
+  position: relative;
+}
+
+#markupCanvas {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  border-radius: 4px;
+  background: #000000;
+  touch-action: none; /* Crucial for touch screens */
+  cursor: crosshair;
+}
+
+/* Instructions Helper */
+.markup-instructions {
+  background: rgba(30, 41, 59, 0.8);
+  color: #94a3b8;
+  font-size: 0.75rem;
+  padding: 0.35rem 0.75rem;
+  text-align: center;
+  border-top: 1px solid #334155;
+}
+

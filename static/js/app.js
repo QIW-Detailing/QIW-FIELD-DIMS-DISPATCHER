@@ -171,6 +171,9 @@ function initEventListeners() {
       }
     });
   }
+
+  // Initialize Photo Markup Studio
+  initMarkupStudio();
 }
 
 /**
@@ -223,6 +226,8 @@ function renderFileList() {
     const formattedSize = formatBytes(item.size);
     const ext = getFileExtension(item.name);
 
+    const isImage = item.type.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'heic'].includes(ext);
+
     let visual = '';
     if (item.previewUrl) {
       visual = `<img src="${item.previewUrl}" class="file-thumb" alt="Thumbnail" />`;
@@ -239,14 +244,25 @@ function renderFileList() {
             <div class="file-size">${formattedSize} &bull; ${ext.toUpperCase()}</div>
           </div>
         </div>
-        <button type="button" class="btn-remove-file" onclick="removeFile('${item.id}')" title="Remove file" aria-label="Remove file">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-            <line x1="10" y1="11" x2="10" y2="17"></line>
-            <line x1="14" y1="11" x2="14" y2="17"></line>
-          </svg>
-        </button>
+        <div class="file-actions-col">
+          ${isImage ? `
+            <button type="button" class="btn-markup-file" onclick="openMarkupEditor('${item.id}')" title="Draw or write notes on photo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              </svg>
+              Markup
+            </button>
+          ` : ''}
+          <button type="button" class="btn-remove-file" onclick="removeFile('${item.id}')" title="Remove file" aria-label="Remove file">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+          </button>
+        </div>
       </div>
     `;
   });
@@ -854,4 +870,351 @@ function showToast(msg) {
   toastTimeout = setTimeout(() => {
     toast.classList.remove('show');
   }, 3500);
+}
+
+// ==========================================
+// PHOTO MARKUP & ANNOTATION STUDIO
+// ==========================================
+
+let markupActiveFileId = null;
+let markupTool = 'pen'; // 'pen', 'arrow', 'text', 'box'
+let markupColor = '#ef4444';
+let markupLineWidth = 6;
+let markupHistory = [];
+let isMarkupDrawing = false;
+let markupStartX = 0;
+let markupStartY = 0;
+let markupCanvasSnapshot = null;
+let currentLoadedImage = null;
+
+function initMarkupStudio() {
+  const canvas = document.getElementById('markupCanvas');
+  if (!canvas) return;
+
+  // Tool buttons
+  const toolButtons = document.querySelectorAll('.markup-tool-btn');
+  const instructions = document.getElementById('markupInstructionText');
+  toolButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      toolButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      markupTool = btn.getAttribute('data-tool');
+
+      if (markupTool === 'pen') {
+        instructions.textContent = '✏️ Draw freely with your finger or stylus.';
+      } else if (markupTool === 'arrow') {
+        instructions.textContent = '➡️ Touch and drag to draw a dimension arrow.';
+      } else if (markupTool === 'text') {
+        instructions.textContent = '🔤 Tap on the photo to enter a dimension or note.';
+      } else if (markupTool === 'box') {
+        instructions.textContent = '🔲 Touch and drag to draw a highlight box.';
+      }
+    });
+  });
+
+  // Color Swatches
+  const colorSwatches = document.querySelectorAll('.color-swatch');
+  colorSwatches.forEach(swatch => {
+    swatch.addEventListener('click', () => {
+      colorSwatches.forEach(s => s.classList.remove('active'));
+      swatch.classList.add('active');
+      markupColor = swatch.getAttribute('data-color');
+    });
+  });
+
+  // Stroke Sizes
+  const strokeButtons = document.querySelectorAll('.stroke-btn');
+  strokeButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      strokeButtons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      markupLineWidth = parseInt(btn.getAttribute('data-size'), 10);
+    });
+  });
+
+  // Action Buttons
+  const btnUndo = document.getElementById('btnMarkupUndo');
+  if (btnUndo) btnUndo.addEventListener('click', undoLastMarkup);
+
+  const btnClear = document.getElementById('btnMarkupClear');
+  if (btnClear) btnClear.addEventListener('click', clearAllMarkup);
+
+  const btnClose = document.getElementById('btnMarkupClose');
+  if (btnClose) btnClose.addEventListener('click', closeMarkupEditor);
+
+  const btnSave = document.getElementById('btnMarkupSave');
+  if (btnSave) btnSave.addEventListener('click', saveMarkupChanges);
+
+  // Canvas Pointer Events
+  canvas.addEventListener('pointerdown', handlePointerDown);
+  canvas.addEventListener('pointermove', handlePointerMove);
+  canvas.addEventListener('pointerup', handlePointerUp);
+  canvas.addEventListener('pointercancel', handlePointerCancel);
+}
+
+function getCanvasCoords(e, canvas) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return {
+    x: (e.clientX - rect.left) * scaleX,
+    y: (e.clientY - rect.top) * scaleY
+  };
+}
+
+function pushCanvasState() {
+  const canvas = document.getElementById('markupCanvas');
+  const ctx = canvas.getContext('2d');
+  if (markupHistory.length > 20) {
+    markupHistory.shift();
+  }
+  markupHistory.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+}
+
+function handlePointerDown(e) {
+  const canvas = document.getElementById('markupCanvas');
+  const ctx = canvas.getContext('2d');
+  try {
+    canvas.setPointerCapture(e.pointerId);
+  } catch (err) {}
+
+  const coords = getCanvasCoords(e, canvas);
+  markupStartX = coords.x;
+  markupStartY = coords.y;
+
+  if (markupTool === 'text') {
+    const userText = prompt('Enter dimension or note to write on photo:', '');
+    if (userText && userText.trim()) {
+      pushCanvasState();
+      drawTextBadge(ctx, userText.trim(), coords.x, coords.y, markupColor, markupLineWidth);
+    }
+    return;
+  }
+
+  pushCanvasState();
+  markupCanvasSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  isMarkupDrawing = true;
+
+  if (markupTool === 'pen') {
+    ctx.beginPath();
+    ctx.moveTo(coords.x, coords.y);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = markupColor;
+    ctx.lineWidth = markupLineWidth;
+  }
+}
+
+function handlePointerMove(e) {
+  if (!isMarkupDrawing) return;
+  const canvas = document.getElementById('markupCanvas');
+  const ctx = canvas.getContext('2d');
+  const coords = getCanvasCoords(e, canvas);
+
+  if (markupTool === 'pen') {
+    ctx.lineTo(coords.x, coords.y);
+    ctx.stroke();
+  } else if (markupTool === 'arrow') {
+    ctx.putImageData(markupCanvasSnapshot, 0, 0);
+    drawArrow(ctx, markupStartX, markupStartY, coords.x, coords.y, markupColor, markupLineWidth);
+  } else if (markupTool === 'box') {
+    ctx.putImageData(markupCanvasSnapshot, 0, 0);
+    ctx.beginPath();
+    ctx.strokeStyle = markupColor;
+    ctx.lineWidth = markupLineWidth;
+    ctx.strokeRect(markupStartX, markupStartY, coords.x - markupStartX, coords.y - markupStartY);
+  }
+}
+
+function handlePointerUp(e) {
+  if (!isMarkupDrawing) return;
+  isMarkupDrawing = false;
+  const canvas = document.getElementById('markupCanvas');
+  try {
+    canvas.releasePointerCapture(e.pointerId);
+  } catch (err) {}
+}
+
+function handlePointerCancel(e) {
+  if (isMarkupDrawing) {
+    isMarkupDrawing = false;
+    undoLastMarkup();
+  }
+}
+
+function drawArrow(ctx, fromX, fromY, toX, toY, color, width) {
+  const headlen = Math.max(16, width * 3.5);
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const angle = Math.atan2(dy, dx);
+
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Arrow shaft
+  ctx.beginPath();
+  ctx.moveTo(fromX, fromY);
+  ctx.lineTo(toX, toY);
+  ctx.stroke();
+
+  // Arrowhead
+  ctx.beginPath();
+  ctx.moveTo(toX, toY);
+  ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+  ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawTextBadge(ctx, text, x, y, color, sizeMultiplier) {
+  ctx.save();
+  const fontSize = Math.max(20, sizeMultiplier * 4);
+  ctx.font = `bold ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+
+  const metrics = ctx.measureText(text);
+  const textWidth = metrics.width;
+  const paddingX = 12;
+  const paddingY = 8;
+  const boxWidth = textWidth + paddingX * 2;
+  const boxHeight = fontSize + paddingY * 2;
+
+  // Background Badge
+  ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+
+  const rectX = x;
+  const rectY = y - boxHeight / 2;
+
+  ctx.beginPath();
+  const r = 8;
+  ctx.moveTo(rectX + r, rectY);
+  ctx.lineTo(rectX + boxWidth - r, rectY);
+  ctx.quadraticCurveTo(rectX + boxWidth, rectY, rectX + boxWidth, rectY + r);
+  ctx.lineTo(rectX + boxWidth, rectY + boxHeight - r);
+  ctx.quadraticCurveTo(rectX + boxWidth, rectY + boxHeight, rectX + boxWidth - r, rectY + boxHeight);
+  ctx.lineTo(rectX + r, rectY + boxHeight);
+  ctx.quadraticCurveTo(rectX, rectY + boxHeight, rectX, rectY + boxHeight - r);
+  ctx.lineTo(rectX, rectY + r);
+  ctx.quadraticCurveTo(rectX, rectY, rectX + r, rectY);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Text
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, rectX + paddingX, rectY + boxHeight / 2);
+  ctx.restore();
+}
+
+function undoLastMarkup() {
+  if (markupHistory.length === 0) return;
+  const canvas = document.getElementById('markupCanvas');
+  const ctx = canvas.getContext('2d');
+  const previousState = markupHistory.pop();
+  ctx.putImageData(previousState, 0, 0);
+}
+
+function clearAllMarkup() {
+  if (!currentLoadedImage) return;
+  if (confirm('Clear all drawings and revert to original photo?')) {
+    pushCanvasState();
+    const canvas = document.getElementById('markupCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(currentLoadedImage, 0, 0, canvas.width, canvas.height);
+  }
+}
+
+function closeMarkupEditor() {
+  const modal = document.getElementById('markupModal');
+  if (modal) modal.classList.remove('active');
+  markupActiveFileId = null;
+  currentLoadedImage = null;
+  markupHistory = [];
+}
+
+window.openMarkupEditor = function(fileId) {
+  const fileObj = attachedFiles.find(f => f.id === fileId);
+  if (!fileObj) return;
+
+  markupActiveFileId = fileId;
+  markupHistory = [];
+
+  const titleEl = document.getElementById('markupPhotoTitle');
+  if (titleEl) titleEl.textContent = `Markup: ${fileObj.name}`;
+
+  const canvas = document.getElementById('markupCanvas');
+  const ctx = canvas.getContext('2d');
+
+  const img = new Image();
+  img.onload = () => {
+    currentLoadedImage = img;
+    let width = img.naturalWidth || img.width;
+    let height = img.naturalHeight || img.height;
+
+    const maxDim = 2000;
+    if (width > maxDim || height > maxDim) {
+      if (width > height) {
+        height = Math.round((height * maxDim) / width);
+        width = maxDim;
+      } else {
+        width = Math.round((width * maxDim) / height);
+        height = maxDim;
+      }
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+
+    ctx.drawImage(img, 0, 0, width, height);
+
+    const modal = document.getElementById('markupModal');
+    if (modal) modal.classList.add('active');
+  };
+
+  img.src = fileObj.previewUrl || URL.createObjectURL(fileObj.file);
+};
+
+function saveMarkupChanges() {
+  if (!markupActiveFileId) return;
+  const canvas = document.getElementById('markupCanvas');
+  const fileObjIndex = attachedFiles.findIndex(f => f.id === markupActiveFileId);
+  if (fileObjIndex === -1) return;
+
+  showLoading(true, 'Saving Marked-up Photo', 'Updating photo with your annotations...');
+
+  canvas.toBlob((blob) => {
+    showLoading(false);
+    if (!blob) {
+      alert('Could not save annotated image.');
+      return;
+    }
+
+    const origName = attachedFiles[fileObjIndex].name;
+    const dotIdx = origName.lastIndexOf('.');
+    const baseName = dotIdx !== -1 ? origName.substring(0, dotIdx) : origName;
+    const newName = baseName.endsWith('_annotated') ? origName : `${baseName}_annotated.jpg`;
+
+    const newFile = new File([blob], newName, { type: 'image/jpeg', lastModified: Date.now() });
+
+    if (attachedFiles[fileObjIndex].previewUrl) {
+      URL.revokeObjectURL(attachedFiles[fileObjIndex].previewUrl);
+    }
+
+    attachedFiles[fileObjIndex].file = newFile;
+    attachedFiles[fileObjIndex].name = newName;
+    attachedFiles[fileObjIndex].size = blob.size;
+    attachedFiles[fileObjIndex].type = 'image/jpeg';
+    attachedFiles[fileObjIndex].previewUrl = URL.createObjectURL(blob);
+
+    renderFileList();
+    closeMarkupEditor();
+    showToast('✅ Photo markup saved and updated in files list!');
+  }, 'image/jpeg', 0.92);
 }
