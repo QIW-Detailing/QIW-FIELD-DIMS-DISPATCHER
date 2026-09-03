@@ -377,8 +377,7 @@ async function ensureZipGenerated(jobName, category, dateSent, shipDate, notes) 
 
   generatedZipBlob = await zip.generateAsync({
     type: 'blob',
-    compression: 'DEFLATE',
-    compressionOptions: { level: 1 }
+    compression: 'STORE'
   });
 
   updateModalDetails(jobName, category);
@@ -387,7 +386,7 @@ async function ensureZipGenerated(jobName, category, dateSent, shipDate, notes) 
 
 /**
  * Handle "Share to Apps" button click
- * Instantly triggers native mobile/tablet share sheet (Teams, WhatsApp, Gmail, Outlook, etc.)
+ * Instantly triggers native mobile/tablet share sheet with the ZIP file
  */
 async function handleShareProcess() {
   if (!validateForm()) {
@@ -405,29 +404,36 @@ async function handleShareProcess() {
   currentSummaryHtml = buildHtmlSummary(jobName, category, dateSent, shipDate, notes);
   const shareTitle = `Field Dims: ${jobName} - ${category}`;
 
-  // Start packaging ZIP in background without blocking the user touch event
-  ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
+  // 1. Instantly package all photos, PDFs, and notes into the ZIP file
+  const zipBlob = await ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
 
-  // DIRECT NATIVE SHARE - 0ms delay, keeps mobile touch activation 100% active!
+  const zipFile = new File([zipBlob], currentZipFilename, {
+    type: 'application/zip',
+    lastModified: Date.now()
+  });
+
+  // 2. Share the ZIP file directly to apps (Outlook, Gmail, etc.)
   if (navigator.share) {
-    const rawFiles = attachedFiles.map(f => f.file).filter(f => f instanceof File);
-
-    // 1. Try sharing original photos & documents directly to apps
-    if (rawFiles.length > 0 && navigator.canShare && navigator.canShare({ files: rawFiles })) {
+    // Attempt 1: Attach ZIP file directly via Web Share API
+    if (navigator.canShare && navigator.canShare({ files: [zipFile] })) {
       try {
         await navigator.share({
           title: shareTitle,
           text: currentSummaryText,
-          files: rawFiles
+          files: [zipFile]
         });
         return;
       } catch (err) {
-        if (err.name === 'AbortError') return; // User closed sheet
-        console.warn('File share dismissed or not supported:', err);
+        if (err.name === 'AbortError') return; // User dismissed share sheet
+        console.warn('Direct zip share rejected by browser:', err);
       }
     }
 
-    // 2. Direct text & summary share (Pops up native Android system share sheet immediately)
+    // Attempt 2: If browser blocks web pages from attaching .zip files directly:
+    // Download the ZIP file to phone, notify user to tap 📎 in Outlook, and open the app chooser!
+    downloadZipArchive();
+    showToast(`📥 "${currentZipFilename}" saved! In Outlook, tap 📎 to attach it.`);
+
     try {
       await navigator.share({
         title: shareTitle,
@@ -435,23 +441,12 @@ async function handleShareProcess() {
       });
       return;
     } catch (err) {
-      if (err.name === 'AbortError') return; // User closed sheet
-      console.warn('Native share failed:', err);
+      if (err.name === 'AbortError') return;
+      console.warn('Text share failed:', err);
     }
   }
 
   // Desktop only: show modal if browser lacks navigator.share
-  const btn = document.getElementById('btnShareEmail');
-  const originalBtnText = btn ? btn.innerHTML : '';
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = `Packaging...`;
-  }
-  await ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
-  if (btn) {
-    btn.disabled = false;
-    btn.innerHTML = originalBtnText;
-  }
   openExportModal();
 }
 
