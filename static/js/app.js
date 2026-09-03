@@ -414,8 +414,16 @@ async function handleShareProcess() {
     lastModified: Date.now()
   });
 
+  // Copy summary to clipboard so it is ready to paste if Outlook leaves body empty
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(currentSummaryText);
+    }
+  } catch (e) {}
+
   // 2. Trigger native Android share sheet with the ZIP file attached!
   if (navigator.share) {
+    showToast(`📁 "${currentZipFilename}" ready! Tap 📎 in Outlook if needed.`);
     try {
       await navigator.share({
         title: shareTitle,
