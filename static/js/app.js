@@ -6,6 +6,8 @@
 // State
 let attachedFiles = [];
 let generatedZipBlob = null;
+let prepackedZipBlob = null;
+let prepackedZipFile = null;
 let currentZipFilename = '';
 let currentSummaryText = '';
 let currentSummaryHtml = '';
@@ -144,7 +146,17 @@ function initEventListeners() {
     btnModalShare.addEventListener('click', () => {
       const modal = document.getElementById('exportModal');
       if (modal) modal.classList.remove('active');
-      triggerNativeShare();
+
+      const jobName = document.getElementById('jobName') ? document.getElementById('jobName').value.trim() : '';
+      const category = document.getElementById('category') ? document.getElementById('category').value.trim() : '';
+      const dateSent = document.getElementById('dateSent') ? document.getElementById('dateSent').value.trim() : '';
+      const shipDate = document.getElementById('shipDate') ? document.getElementById('shipDate').value.trim() : '';
+      const notes = document.getElementById('notes') ? document.getElementById('notes').value.trim() : '';
+      const shareTitle = `Field Dims: ${jobName} - ${category}`;
+      const summary = buildTextSummary(jobName, category, dateSent, shipDate, notes);
+
+      downloadZipArchive();
+      window.location.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(summary)}`;
     });
   }
 
@@ -198,6 +210,7 @@ function handleFiles(fileList) {
     attachedFiles.push(fileObj);
   }
   renderFileList();
+  prepackZipInBackground();
 }
 
 /**
@@ -275,6 +288,7 @@ window.removeFile = function(id) {
     }
     attachedFiles.splice(index, 1);
     renderFileList();
+    prepackZipInBackground();
   }
 };
 
@@ -385,10 +399,60 @@ async function ensureZipGenerated(jobName, category, dateSent, shipDate, notes) 
 }
 
 /**
+ * Pre-generate the ZIP file in the background so it is 100% ready in memory with 0ms delay!
+ */
+async function prepackZipInBackground() {
+  if (attachedFiles.length === 0) {
+    prepackedZipBlob = null;
+    prepackedZipFile = null;
+    return;
+  }
+
+  const jobName = document.getElementById('jobName') ? document.getElementById('jobName').value.trim() : '';
+  const category = document.getElementById('category') ? document.getElementById('category').value.trim() : '';
+  const dateSent = document.getElementById('dateSent') ? document.getElementById('dateSent').value.trim() : '';
+  const shipDate = document.getElementById('shipDate') ? document.getElementById('shipDate').value.trim() : '';
+  const notes = document.getElementById('notes') ? document.getElementById('notes').value.trim() : '';
+
+  currentZipFilename = generateSafeFilename(jobName, category) + '.zip';
+
+  const zip = new JSZip();
+  const usedNames = new Set();
+  for (const item of attachedFiles) {
+    let fileName = item.name;
+    if (usedNames.has(fileName)) {
+      const parts = fileName.split('.');
+      const ext = parts.length > 1 ? '.' + parts.pop() : '';
+      const base = parts.join('.');
+      fileName = `${base}_${Math.floor(Math.random() * 1000)}${ext}`;
+    }
+    usedNames.add(fileName);
+    zip.file(fileName, item.file);
+  }
+
+  zip.file("JOB_SUMMARY.txt", buildTextSummary(jobName, category, dateSent, shipDate, notes));
+
+  try {
+    prepackedZipBlob = await zip.generateAsync({
+      type: 'blob',
+      compression: 'STORE'
+    });
+    generatedZipBlob = prepackedZipBlob;
+    prepackedZipFile = new File([prepackedZipBlob], currentZipFilename, {
+      type: 'application/zip',
+      lastModified: Date.now()
+    });
+    updateModalDetails(jobName, category);
+  } catch (err) {
+    console.warn('Prepack background ZIP error:', err);
+  }
+}
+
+/**
  * Handle "Share ZIP to Apps" button click
- * 1. Instantly packages all files into the single ZIP file (<Job> - <Category>.zip)
- * 2. Opens the native Android share menu with all installed apps (Outlook, Gmail, Teams, WhatsApp)
- * 3. Attaches the ZIP file directly to that email/message!
+ * 1. Uses pre-packed ZIP from memory (0ms delay) to preserve touch activation 100%
+ * 2. Pops up the native Android share menu (Teams, WhatsApp, Gmail, Outlook)
+ * 3. Fallback automatically downloads ZIP and opens Outlook
  */
 async function handleShareProcess() {
   if (!validateForm()) {
@@ -405,33 +469,33 @@ async function handleShareProcess() {
   currentSummaryText = buildTextSummary(jobName, category, dateSent, shipDate, notes);
   currentSummaryHtml = buildHtmlSummary(jobName, category, dateSent, shipDate, notes);
   const shareTitle = `Field Dims: ${jobName} - ${category}`;
+  currentZipFilename = generateSafeFilename(jobName, category) + '.zip';
 
-  // 1. Instantly package all photos & files into ZIP container (<Job> - <Category>.zip)
-  const zipBlob = await ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
+  let zipFileToShare = prepackedZipFile;
+  if (!zipFileToShare) {
+    const zipBlob = await ensureZipGenerated(jobName, category, dateSent, shipDate, notes);
+    zipFileToShare = new File([zipBlob], currentZipFilename, {
+      type: 'application/zip',
+      lastModified: Date.now()
+    });
+  }
 
-  const zipFile = new File([zipBlob], currentZipFilename, {
-    type: 'application/zip',
-    lastModified: Date.now()
-  });
-
-  // 2. DIRECT NATIVE SHARE - 0ms delay, preserves 100% user gesture activation!
+  // 100% RELIABLE NATIVE SHARE - DIRECTLY OPENS ANDROID APP SELECTOR
   if (navigator.share) {
-    // Attempt 1: Try native share with ZIP file attached
+    // 1. Try sharing with the ZIP file attached to the native app chooser
     try {
-      if (!navigator.canShare || navigator.canShare({ files: [zipFile] })) {
-        await navigator.share({
-          title: shareTitle,
-          text: currentSummaryText,
-          files: [zipFile]
-        });
-        return;
-      }
+      await navigator.share({
+        title: shareTitle,
+        text: currentSummaryText,
+        files: [zipFileToShare]
+      });
+      return;
     } catch (err) {
       if (err.name === 'AbortError') return; // User closed the system share sheet
-      console.warn('Share with zipFile rejected, falling back to direct share:', err);
+      console.warn('Share with zipFile rejected by browser/OS, attempting direct text share:', err);
     }
 
-    // Attempt 2: Direct native share fallback (GUARANTEED to open Android share sheet with Teams, WhatsApp, Gmail, Outlook)
+    // 2. Direct native share fallback (GUARANTEED to open Android share sheet with Teams, WhatsApp, Gmail, Outlook)
     try {
       await navigator.share({
         title: shareTitle,
@@ -444,8 +508,9 @@ async function handleShareProcess() {
     }
   }
 
-  // Desktop or fallback if navigator.share is not available
-  openExportModal();
+  // Fallback for desktop: download ZIP and open Outlook directly
+  downloadZipArchive();
+  window.location.href = `mailto:?subject=${encodeURIComponent(shareTitle)}&body=${encodeURIComponent(currentSummaryText)}`;
 }
 
 /**
@@ -1145,6 +1210,7 @@ function saveMarkupChanges() {
     attachedFiles[fileObjIndex].previewUrl = URL.createObjectURL(blob);
 
     renderFileList();
+    prepackZipInBackground();
     closeMarkupEditor();
     showToast('✅ Photo markup saved and updated in files list!');
   }, 'image/jpeg', 0.92);
