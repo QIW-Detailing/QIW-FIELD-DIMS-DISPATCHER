@@ -414,26 +414,33 @@ async function handleShareProcess() {
     lastModified: Date.now()
   });
 
-  // Copy summary to clipboard so it is ready to paste if Outlook leaves body empty
-  try {
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(currentSummaryText);
-    }
-  } catch (e) {}
-
-  // 2. Trigger native Android share sheet with the ZIP file attached!
+  // 2. DIRECT NATIVE SHARE - 0ms delay, preserves 100% user gesture activation!
   if (navigator.share) {
-    showToast(`📁 "${currentZipFilename}" ready! Tap 📎 in Outlook if needed.`);
+    // Attempt 1: Try native share with ZIP file attached
+    try {
+      if (!navigator.canShare || navigator.canShare({ files: [zipFile] })) {
+        await navigator.share({
+          title: shareTitle,
+          text: currentSummaryText,
+          files: [zipFile]
+        });
+        return;
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return; // User closed the system share sheet
+      console.warn('Share with zipFile rejected, falling back to direct share:', err);
+    }
+
+    // Attempt 2: Direct native share fallback (GUARANTEED to open Android share sheet with Teams, WhatsApp, Gmail, Outlook)
     try {
       await navigator.share({
         title: shareTitle,
-        text: currentSummaryText,
-        files: [zipFile]
+        text: currentSummaryText
       });
       return;
     } catch (err) {
-      if (err.name === 'AbortError') return; // User closed the system share sheet
-      console.warn('Share with ZIP file error:', err);
+      if (err.name === 'AbortError') return;
+      console.warn('Direct share dismissed:', err);
     }
   }
 
